@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FRC FIM District Point Calculator</title>
+  <style>
+    :root {
+      --blue: #1a5fa8;
+      --teal: #0077a8;
+      --teal-light: #e6f4f8;
+      --teal-border: #b0d8e8;
+      --header-bg: #0d4d7a;
+      --accent: #f5a623;
+      --text: #222;
+      --muted: #555;
+      --card-bg: #fff;
+      --page-bg: #f0f6fa;
+      --border: #cce0ea;
+      --green: #2a8a2a;
+      --red: #c0392b;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: var(--page-bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    header {
+      background: var(--header-bg);
+      color: #fff;
+      padding: 18px 24px 14px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    header .logo {
+      font-size: 2rem;
+      line-height: 1;
+    }
+
+    header h1 {
+      font-size: 1.35rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    header p {
+      font-size: 0.82rem;
+      opacity: 0.8;
+      margin-top: 3px;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 24px auto;
+      padding: 0 16px 40px;
+    }
+
+    /* ── Season Summary ─────────────────────────────── */
+    .season-summary {
+      background: var(--header-bg);
+      color: #fff;
+      border-radius: 10px;
+      padding: 18px 24px;
+      margin-bottom: 24px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      align-items: center;
+    }
+
+    .season-summary h2 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      flex: 1 1 100%;
+      margin-bottom: 4px;
+    }
+
+    .score-chip {
+      background: rgba(255,255,255,0.12);
+      border-radius: 8px;
+      padding: 10px 18px;
+      text-align: center;
+      min-width: 130px;
+      flex: 1 1 auto;
+    }
+
+    .score-chip .label {
+      font-size: 0.72rem;
+      opacity: 0.75;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .score-chip .value {
+      font-size: 2rem;
+      font-weight: 700;
+      line-height: 1.1;
+    }
+
+    .score-chip.total {
+      background: var(--accent);
+      color: #1a1a00;
+    }
+
+    /* ── Event Cards ────────────────────────────────── */
+    .event-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      margin-bottom: 20px;
+      overflow: hidden;
+    }
+
+    .event-card .card-header {
+      background: var(--teal);
+      color: #fff;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .event-card .card-header h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .event-card .card-header .event-total {
+      font-size: 1.4rem;
+      font-weight: 800;
+      background: rgba(255,255,255,0.18);
+      border-radius: 6px;
+      padding: 3px 14px;
+    }
+
+    .championship-header {
+      background: var(--blue) !important;
+    }
+
+    .card-body {
+      padding: 20px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px 24px;
+    }
+
+    @media (max-width: 560px) {
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    label {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    input[type="number"],
+    select {
+      border: 1px solid var(--teal-border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 0.95rem;
+      background: var(--teal-light);
+      color: var(--text);
+      width: 100%;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    input[type="number"]:focus,
+    select:focus {
+      border-color: var(--teal);
+    }
+
+    /* ── Award checkboxes ───────────────────────────── */
+    .award-section {
+      grid-column: 1 / -1;
+      background: var(--teal-light);
+      border: 1px solid var(--teal-border);
+      border-radius: 8px;
+      padding: 14px 16px;
+    }
+
+    .award-section .section-title {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--teal);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 10px;
+    }
+
+    .award-list {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+
+    .award-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.9rem;
+    }
+
+    .award-row input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--teal);
+      cursor: pointer;
+    }
+
+    .award-row .pts-badge {
+      margin-left: auto;
+      background: var(--teal);
+      color: #fff;
+      font-size: 0.75rem;
+      font-weight: 700;
+      border-radius: 4px;
+      padding: 1px 7px;
+    }
+
+    /* ── Breakdown table ────────────────────────────── */
+    .breakdown {
+      grid-column: 1 / -1;
+      margin-top: 4px;
+    }
+
+    .breakdown table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+    }
+
+    .breakdown th {
+      background: #eaf4f9;
+      text-align: left;
+      padding: 6px 10px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--teal);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .breakdown td {
+      padding: 6px 10px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .breakdown tr:last-child td {
+      border-bottom: none;
+    }
+
+    .breakdown td.pts {
+      text-align: right;
+      font-weight: 700;
+      color: var(--blue);
+    }
+
+    .breakdown tr.total-row td {
+      background: #eaf4f9;
+      font-weight: 700;
+      border-top: 2px solid var(--teal-border);
+    }
+
+    /* ── Info box ───────────────────────────────────── */
+    .info-box {
+      background: #fff8e6;
+      border: 1px solid #f0d080;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 0.82rem;
+      color: #7a5a00;
+      margin-bottom: 20px;
+      line-height: 1.5;
+    }
+
+    .info-box strong { color: #5a3f00; }
+
+    /* ── Multiplier note ────────────────────────────── */
+    .multiplier-note {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 4px;
+      font-style: italic;
+    }
+
+    .section-divider {
+      grid-column: 1 / -1;
+      border: none;
+      border-top: 1px dashed var(--teal-border);
+      margin: 8px 0 4px;
+    }
+
+    footer {
+      text-align: center;
+      font-size: 0.78rem;
+      color: #888;
+      padding: 10px 0 24px;
+    }
+
+    footer a { color: var(--teal); text-decoration: none; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🤖</div>
+  <div>
+    <h1>FRC First in Michigan — District Point Calculator</h1>
+    <p>Season ranking points per FIRST in Michigan District Rules § 11.1</p>
+  </div>
+</header>
+
+<div class="container">
+
+  <div class="info-box">
+    <strong>How scoring works:</strong> Teams accumulate points from their best 2 home District events plus their District Championship. 
+    District Championship points are multiplied by <strong>3</strong> before being added to your total.
+    Ties in season totals are broken by additional criteria per the FIM game manual.
+  </div>
+
+  <!-- Season Summary -->
+  <div class="season-summary" id="seasonSummary">
+    <h2>Season Total</h2>
+    <div class="score-chip" id="chip0"><div class="label">District Event 1</div><div class="value" id="chip0val">—</div></div>
+    <div class="score-chip" id="chip1"><div class="label">District Event 2</div><div class="value" id="chip1val">—</div></div>
+    <div class="score-chip" id="chip2"><div class="label">Champ (×3)</div><div class="value" id="chip2val">—</div></div>
+    <div class="score-chip total"><div class="label">Total Points</div><div class="value" id="chipTotal">0</div></div>
+  </div>
+
+  <!-- District Event 1 -->
+  <div class="event-card" id="eventCard0">
+    <div class="card-header">
+      <h3>🏁 District Event 1</h3>
+      <div class="event-total" id="eventTotal0">0 pts</div>
+    </div>
+    <div class="card-body">
+      <div class="grid-2" id="eventGrid0"></div>
+    </div>
+  </div>
+
+  <!-- District Event 2 -->
+  <div class="event-card" id="eventCard1">
+    <div class="card-header">
+      <h3>🏁 District Event 2</h3>
+      <div class="event-total" id="eventTotal1">0 pts</div>
+    </div>
+    <div class="card-body">
+      <div class="grid-2" id="eventGrid1"></div>
+    </div>
+  </div>
+
+  <!-- District Championship -->
+  <div class="event-card" id="eventCard2">
+    <div class="card-header championship-header">
+      <h3>🏆 District Championship <span style="font-weight:400;font-size:0.85rem;opacity:0.85">(points × 3)</span></h3>
+      <div class="event-total" id="eventTotal2">0 pts</div>
+    </div>
+    <div class="card-body">
+      <div class="grid-2" id="eventGrid2"></div>
+    </div>
+  </div>
+
+  <footer>
+    Point rules per <a href="https://www.firstinmichigan.org" target="_blank">FIRST in Michigan</a> § 11.1 District Point Assignment.
+    Always verify values against the current season's official game manual.
+  </footer>
+</div>
+
+<script>
+// ── Point calculation helpers ───────────────────────────────────────────────
+
+function calcQualPoints(rank, numTeams) {
+  rank = parseInt(rank, 10);
+  numTeams = parseInt(numTeams, 10);
+  if (!rank || !numTeams || rank < 1 || numTeams < 1) return 0;
+  if (numTeams === 1) return 22;
+  const raw = Math.round(22 - 18 * (rank - 1) / (numTeams - 1));
+  return Math.max(4, Math.min(22, raw));
+}
+
+function calcAlliancePoints(role, captainNum, draftNum) {
+  if (role === 'captain') {
+    const n = parseInt(captainNum, 10);
+    return (!n || n < 1) ? 0 : Math.max(0, 17 - n);
+  }
+  if (role === 'pick') {
+    const n = parseInt(draftNum, 10);
+    return (!n || n < 1) ? 0 : Math.max(0, 17 - n);
+  }
+  return 0;
+}
+
+// Playoff advancement points (per FIM § 11.1.3)
+// Points are awarded per round participation and advancement.
+const PLAYOFF_POINTS = {
+  'none':     0,
+  'qf_loss':  5,   // Alliance eliminated in Quarterfinals
+  'sf_loss':  10,  // Alliance eliminated in Semifinals
+  'finalist': 15,  // Alliance eliminated in Finals (Runner-up)
+  'winner':   20,  // Alliance wins the event (District Champions)
+};
+
+const PLAYOFF_LABELS = {
+  'none':     'Did not make playoffs',
+  'qf_loss':  'Quarterfinals (eliminated) — 5 pts',
+  'sf_loss':  'Semifinals (eliminated) — 10 pts',
+  'finalist': 'Finalist (runner-up) — 15 pts',
+  'winner':   'Event Winner (champion) — 20 pts',
+};
+
+// ── Build event form ────────────────────────────────────────────────────────
+
+function buildEventForm(container, eventIndex) {
+  // Qual Performance
+  container.innerHTML = `
+    <div class="field">
+      <label>Number of Teams at Event</label>
+      <input type="number" id="e${eventIndex}_numTeams" min="1" max="120" placeholder="e.g. 40" />
+    </div>
+    <div class="field">
+      <label>Qualification Rank</label>
+      <input type="number" id="e${eventIndex}_rank" min="1" max="120" placeholder="e.g. 5" />
+    </div>
+    <hr class="section-divider" />
+
+    <!-- Alliance Selection -->
+    <div class="field">
+      <label>Alliance Selection Role</label>
+      <select id="e${eventIndex}_role">
+        <option value="none">Not selected / N/A</option>
+        <option value="captain">Alliance Captain</option>
+        <option value="pick">Draft Pick (selected by a captain)</option>
+      </select>
+    </div>
+    <div class="field" id="e${eventIndex}_captainField" style="display:none">
+      <label>Alliance Captain # (1–8)</label>
+      <input type="number" id="e${eventIndex}_captainNum" min="1" max="8" placeholder="e.g. 3" />
+    </div>
+    <div class="field" id="e${eventIndex}_draftField" style="display:none">
+      <label>Draft Order Acceptance # (1–16)</label>
+      <input type="number" id="e${eventIndex}_draftNum" min="1" max="16" placeholder="e.g. 5" />
+    </div>
+    <hr class="section-divider" />
+
+    <!-- Playoff -->
+    <div class="field" style="grid-column: 1 / -1;">
+      <label>Playoff Advancement</label>
+      <select id="e${eventIndex}_playoff">
+        ${Object.entries(PLAYOFF_LABELS).map(([v,l]) =>
+          `<option value="${v}">${l}</option>`
+        ).join('')}
+      </select>
+    </div>
+    <hr class="section-divider" />
+
+    <!-- Awards -->
+    <div class="award-section">
+      <div class="section-title">Team Judged Awards</div>
+      <div class="award-list">
+        <label class="award-row">
+          <input type="checkbox" id="e${eventIndex}_award_impact" />
+          <span><em>FIRST</em> Impact Award</span>
+          <span class="pts-badge">10 pts</span>
+        </label>
+        <label class="award-row">
+          <input type="checkbox" id="e${eventIndex}_award_ei" />
+          <span>Engineering Inspiration Award</span>
+          <span class="pts-badge">8 pts</span>
+        </label>
+        <label class="award-row">
+          <input type="checkbox" id="e${eventIndex}_award_rookie" />
+          <span>Rookie All Star Award</span>
+          <span class="pts-badge">8 pts</span>
+        </label>
+        <label class="award-row">
+          <input type="number" id="e${eventIndex}_award_other" min="0" max="10"
+            style="width:60px;display:inline;flex:none;" value="0" />
+          <span>Other team judged award(s)</span>
+          <span class="pts-badge">5 pts each</span>
+        </label>
+      </div>
+    </div>
+    <hr class="section-divider" />
+
+    <!-- Team Age -->
+    <div class="field" style="grid-column: 1 / -1;">
+      <label>Team Age Bonus</label>
+      <select id="e${eventIndex}_teamAge">
+        <option value="0">Veteran team — 0 pts</option>
+        <option value="5">2025 Rookie team — 5 pts</option>
+        <option value="10">2026 Rookie team — 10 pts</option>
+      </select>
+    </div>
+    <hr class="section-divider" />
+
+    <!-- Breakdown -->
+    <div class="breakdown">
+      <table id="e${eventIndex}_breakdown">
+        <thead>
+          <tr><th>Category</th><th style="text-align:right">Points</th></tr>
+        </thead>
+        <tbody id="e${eventIndex}_tbody">
+          <tr><td colspan="2" style="color:#aaa;font-style:italic;padding:8px 10px;">
+            Enter event data above to see breakdown.
+          </td></tr>
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  // Show/hide captain/draft fields on role change
+  const roleEl = document.getElementById(`e${eventIndex}_role`);
+  roleEl.addEventListener('change', () => {
+    document.getElementById(`e${eventIndex}_captainField`).style.display =
+      roleEl.value === 'captain' ? '' : 'none';
+    document.getElementById(`e${eventIndex}_draftField`).style.display =
+      roleEl.value === 'pick' ? '' : 'none';
+    recalc(eventIndex);
+  });
+
+  // Attach listeners to all inputs
+  ['numTeams','rank','captainNum','draftNum'].forEach(id => {
+    const el = document.getElementById(`e${eventIndex}_${id}`);
+    if (el) el.addEventListener('input', () => recalc(eventIndex));
+  });
+  ['playoff','teamAge'].forEach(id => {
+    document.getElementById(`e${eventIndex}_${id}`)
+      .addEventListener('change', () => recalc(eventIndex));
+  });
+  ['award_impact','award_ei','award_rookie'].forEach(id => {
+    document.getElementById(`e${eventIndex}_${id}`)
+      .addEventListener('change', () => recalc(eventIndex));
+  });
+  document.getElementById(`e${eventIndex}_award_other`)
+    .addEventListener('input', () => recalc(eventIndex));
+}
+
+// ── Recalculate one event ───────────────────────────────────────────────────
+
+function recalc(eventIndex) {
+  const g = id => document.getElementById(`e${eventIndex}_${id}`);
+
+  const numTeams  = parseInt(g('numTeams').value, 10) || 0;
+  const rank      = parseInt(g('rank').value, 10) || 0;
+  const role      = g('role').value;
+  const captainNum = g('captainNum') ? parseInt(g('captainNum').value, 10) || 0 : 0;
+  const draftNum   = g('draftNum')   ? parseInt(g('draftNum').value,   10) || 0 : 0;
+  const playoff   = g('playoff').value;
+  const teamAge   = parseInt(g('teamAge').value, 10) || 0;
+  const awardImpact = g('award_impact').checked;
+  const awardEI     = g('award_ei').checked;
+  const awardRookie = g('award_rookie').checked;
+  const awardOther  = Math.max(0, parseInt(g('award_other').value, 10) || 0);
+
+  const qualPts      = (rank && numTeams) ? calcQualPoints(rank, numTeams) : 0;
+  const alliancePts  = calcAlliancePoints(role, captainNum, draftNum);
+  const playoffPts   = PLAYOFF_POINTS[playoff] || 0;
+  const awardPts     = (awardImpact ? 10 : 0) + (awardEI ? 8 : 0)
+                     + (awardRookie ? 8 : 0) + (awardOther * 5);
+  const total        = qualPts + alliancePts + playoffPts + awardPts + teamAge;
+
+  // Update breakdown table
+  const rows = [];
+  if (qualPts > 0 || (rank && numTeams)) {
+    rows.push([`Qualification Round Performance (rank ${rank} of ${numTeams})`, qualPts]);
+  }
+  if (alliancePts > 0) {
+    const desc = role === 'captain'
+      ? `Alliance Captain #${captainNum} (17 − ${captainNum})`
+      : `Draft Acceptance #${draftNum} (17 − ${draftNum})`;
+    rows.push([desc, alliancePts]);
+  }
+  if (playoffPts > 0) {
+    rows.push([`Playoff Advancement (${PLAYOFF_LABELS[playoff].split(' —')[0]})`, playoffPts]);
+  }
+  if (awardImpact) rows.push(['FIRST Impact Award', 10]);
+  if (awardEI)     rows.push(['Engineering Inspiration Award', 8]);
+  if (awardRookie) rows.push(['Rookie All Star Award', 8]);
+  if (awardOther)  rows.push([`Other Judged Awards (${awardOther} × 5)`, awardOther * 5]);
+  if (teamAge > 0) rows.push([`Team Age Bonus`, teamAge]);
+
+  const tbody = document.getElementById(`e${eventIndex}_tbody`);
+  if (rows.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="2" style="color:#aaa;font-style:italic;padding:8px 10px;">
+      Enter event data above to see breakdown.</td></tr>`;
+  } else {
+    tbody.innerHTML = rows.map(([desc, pts]) =>
+      `<tr><td>${desc}</td><td class="pts">${pts}</td></tr>`
+    ).join('') + `<tr class="total-row">
+        <td>Event Total</td><td class="pts">${total}</td>
+      </tr>`;
+  }
+
+  // Update card header total
+  document.getElementById(`eventTotal${eventIndex}`).textContent = `${total} pts`;
+
+  updateSeason();
+}
+
+// ── Season total ────────────────────────────────────────────────────────────
+
+function getEventTotal(eventIndex) {
+  const text = document.getElementById(`eventTotal${eventIndex}`).textContent;
+  return parseInt(text, 10) || 0;
+}
+
+function updateSeason() {
+  const e0 = getEventTotal(0);
+  const e1 = getEventTotal(1);
+  const e2 = getEventTotal(2);
+  const champMultiplied = e2 * 3;
+  const total = e0 + e1 + champMultiplied;
+
+  document.getElementById('chip0val').textContent = e0 > 0 ? e0 : '—';
+  document.getElementById('chip1val').textContent = e1 > 0 ? e1 : '—';
+  document.getElementById('chip2val').textContent = e2 > 0 ? `${e2}×3=${champMultiplied}` : '—';
+  document.getElementById('chipTotal').textContent = total;
+}
+
+// ── Init ────────────────────────────────────────────────────────────────────
+
+[0, 1, 2].forEach(i => buildEventForm(document.getElementById(`eventGrid${i}`), i));
+</script>
+</body>
+</html>
