@@ -497,7 +497,7 @@ function buildEventForm(container, eventIndex) {
       </div>
     </div>
     <div class="field" id="e${eventIndex}_finalsField" style="display:none; grid-column: 1 / -1;">
-      <label>Finals Matches Won by Team (0–2; max 1 if Finalist)</label>
+      <label>Finals Matches Won by Team</label>
       <select id="e${eventIndex}_finals_participated">
         <option value="0">0 — No finals wins</option>
         <option value="1">1 — 1 win (5 pts)</option>
@@ -560,7 +560,7 @@ function buildEventForm(container, eventIndex) {
       <select id="e${eventIndex}_interdiv_result">
         <option value="none">Did not compete in interdivisional playoffs</option>
         <option value="finalist">Finalist / Runner-up — 10 pts</option>
-        <option value="winner">Winner — 10 pts (2 div) / 20 pts (4 div)</option>
+        <option value="winner">Winner — 10 pts (2 divisions)</option>
       </select>
     </div>
     <hr class="section-divider" />
@@ -593,12 +593,21 @@ function buildEventForm(container, eventIndex) {
 
   // Show/hide DE match fields and finals field based on playoff finish
   const finishEl = document.getElementById(`e${eventIndex}_playoff_finish`);
+  const finalsSelect = document.getElementById(`e${eventIndex}_finals_participated`);
   finishEl.addEventListener('change', () => {
     const finish = finishEl.value;
     const deFields = document.getElementById(`e${eventIndex}_deFields`);
     const finalsField = document.getElementById(`e${eventIndex}_finalsField`);
     deFields.style.display = (finish !== 'none') ? 'grid' : 'none';
     finalsField.style.display = (finish === '1st' || finish === '2nd') ? '' : 'none';
+    // Finalists can win at most 1 finals match; disable "2 wins" option and reset if needed
+    const opt2 = finalsSelect.querySelector('option[value="2"]');
+    if (finish === '2nd') {
+      opt2.disabled = true;
+      if (finalsSelect.value === '2') finalsSelect.value = '1';
+    } else {
+      opt2.disabled = false;
+    }
     recalc(eventIndex);
   });
 
@@ -629,10 +638,18 @@ function buildEventForm(container, eventIndex) {
     .addEventListener('input', () => recalc(eventIndex));
 
   if (isChamp) {
-    document.getElementById(`e${eventIndex}_divisions`)
-      .addEventListener('change', () => recalc(eventIndex));
-    document.getElementById(`e${eventIndex}_interdiv_result`)
-      .addEventListener('change', () => recalc(eventIndex));
+    const divisionsEl = document.getElementById(`e${eventIndex}_divisions`);
+    const interdivEl  = document.getElementById(`e${eventIndex}_interdiv_result`);
+    // Update winner option label when division count changes
+    divisionsEl.addEventListener('change', () => {
+      const div = parseInt(divisionsEl.value, 10) || 2;
+      const winnerOpt = interdivEl.querySelector('option[value="winner"]');
+      winnerOpt.textContent = div === 4
+        ? 'Winner — 20 pts (4 divisions)'
+        : 'Winner — 10 pts (2 divisions)';
+      recalc(eventIndex);
+    });
+    interdivEl.addEventListener('change', () => recalc(eventIndex));
   }
 }
 
@@ -732,9 +749,16 @@ function updateSeason() {
 
   document.getElementById('chip0val').textContent = e0 > 0 ? e0 : '—';
   document.getElementById('chip1val').textContent = e1 > 0 ? e1 : '—';
-  const champDisplay = e2 > 0
-    ? (interDivisionalPts > 0 ? `${e2}×3=${champMultiplied}+${interDivisionalPts}` : `${e2}×3=${champMultiplied}`)
-    : (interDivisionalPts > 0 ? `+${interDivisionalPts} interdiv` : '—');
+  let champDisplay;
+  if (e2 > 0 && interDivisionalPts > 0) {
+    champDisplay = `${e2}×3=${champMultiplied}+${interDivisionalPts}`;
+  } else if (e2 > 0) {
+    champDisplay = `${e2}×3=${champMultiplied}`;
+  } else if (interDivisionalPts > 0) {
+    champDisplay = `+${interDivisionalPts} interdiv`;
+  } else {
+    champDisplay = '—';
+  }
   document.getElementById('chip2val').textContent = champDisplay;
   document.getElementById('chipTotal').textContent = total;
 }
