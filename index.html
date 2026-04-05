@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FRC FIM District Point Calculator</title>
+  <title>FRC District Point Calculator</title>
   <style>
     :root {
       --blue: #1a5fa8;
@@ -329,17 +329,18 @@
 <header>
   <div class="logo">🤖</div>
   <div>
-    <h1>FRC First in Michigan — District Point Calculator</h1>
-    <p>Season ranking points per FIRST in Michigan District Rules § 11.1</p>
+    <h1>FRC District Point Calculator</h1>
+    <p>Season ranking points per FIRST District Rules § 11.1</p>
   </div>
 </header>
 
 <div class="container">
 
   <div class="info-box">
-    <strong>How scoring works:</strong> Teams accumulate points from their best 2 home District events plus their District Championship. 
+    <strong>How scoring works:</strong> Teams accumulate points from their <strong>first 2</strong> District events plus their District Championship.
     District Championship points are multiplied by <strong>3</strong> before being added to your total.
-    Ties in season totals are broken by additional criteria per the FIM game manual.
+    Ties in season totals are broken by additional criteria per the
+    <a href="https://firstfrc.blob.core.windows.net/frc2025/Manual/2025GameManual.pdf" target="_blank" style="color:#7a5a00;">official game manual</a>.
   </div>
 
   <!-- Season Summary -->
@@ -385,7 +386,7 @@
   </div>
 
   <footer>
-    Point rules per <a href="https://www.firstinmichigan.org" target="_blank">FIRST in Michigan</a> § 11.1 District Point Assignment.
+    Point rules per the <a href="https://firstfrc.blob.core.windows.net/frc2025/Manual/2025GameManual.pdf" target="_blank">FIRST District Game Manual</a> § 11.1 District Point Assignment.
     Always verify values against the current season's official game manual.
   </footer>
 </div>
@@ -419,19 +420,30 @@ function calcAlliancePoints(role, captainNum, draftNum) {
 const PLAYOFF_BETA = { '4th': 7, '3rd': 13, '2nd': 20, '1st': 20 };
 
 // DE Points = ceil( (team_wins / alliance_wins) × β )
-// Winners also earn Finals Points: 5 pts per Finals match won while participating, max 10.
-function calcPlayoffPoints(finish, allianceWins, teamWins, finalsParticipated) {
+// Finals Points: 5 pts per Finals match won while participating (both finalists and winners), max 10.
+function calcPlayoffPoints(finish, allianceWins, teamWins, finalsWins) {
   if (finish === 'none' || allianceWins <= 0) return { de: 0, finals: 0 };
   const beta = PLAYOFF_BETA[finish];
   const clamped = Math.min(Math.max(0, teamWins), allianceWins);
   const de = Math.ceil((clamped / allianceWins) * beta);
-  const finals = (finish === '1st') ? Math.min(5 * Math.max(0, finalsParticipated), 10) : 0;
+  const finals = (finish === '1st' || finish === '2nd') ? Math.min(5 * Math.max(0, finalsWins), 10) : 0;
   return { de, finals };
 }
+
+// Interdivisional playoff points (championship only, not tripled)
+function calcInterDivisionalPoints(divisions, result) {
+  if (result === 'none') return 0;
+  if (result === 'finalist') return 10;
+  if (result === 'winner') return divisions === 4 ? 20 : 10;
+  return 0;
+}
+
+let interDivisionalPts = 0;
 
 // ── Build event form ────────────────────────────────────────────────────────
 
 function buildEventForm(container, eventIndex) {
+  const isChamp = eventIndex === 2;
   // Qual Performance
   container.innerHTML = `
     <div class="field">
@@ -485,8 +497,12 @@ function buildEventForm(container, eventIndex) {
       </div>
     </div>
     <div class="field" id="e${eventIndex}_finalsField" style="display:none; grid-column: 1 / -1;">
-      <label>Finals Matches Won &amp; Team Participated (0–2)</label>
-      <input type="number" id="e${eventIndex}_finals_participated" min="0" max="2" placeholder="0" value="0" />
+      <label>Finals Matches Won by Team (0–2; max 1 if Finalist)</label>
+      <select id="e${eventIndex}_finals_participated">
+        <option value="0">0 — No finals wins</option>
+        <option value="1">1 — 1 win (5 pts)</option>
+        <option value="2">2 — 2 wins (10 pts)</option>
+      </select>
     </div>
     <hr class="section-divider" />
 
@@ -530,6 +546,26 @@ function buildEventForm(container, eventIndex) {
     </div>
     <hr class="section-divider" />
 
+    ${isChamp ? `
+    <!-- Championship: Divisions & Interdivisional Playoff -->
+    <div class="field" style="grid-column: 1 / -1;">
+      <label>Number of Divisions at Championship</label>
+      <select id="e${eventIndex}_divisions">
+        <option value="2">2 Divisions</option>
+        <option value="4">4 Divisions</option>
+      </select>
+    </div>
+    <div class="field" style="grid-column: 1 / -1;">
+      <label>Interdivisional Playoff Result <span style="font-weight:400;font-style:italic;">(not ×3)</span></label>
+      <select id="e${eventIndex}_interdiv_result">
+        <option value="none">Did not compete in interdivisional playoffs</option>
+        <option value="finalist">Finalist / Runner-up — 10 pts</option>
+        <option value="winner">Winner — 10 pts (2 div) / 20 pts (4 div)</option>
+      </select>
+    </div>
+    <hr class="section-divider" />
+    ` : ''}
+
     <!-- Breakdown -->
     <div class="breakdown">
       <table id="e${eventIndex}_breakdown">
@@ -562,7 +598,7 @@ function buildEventForm(container, eventIndex) {
     const deFields = document.getElementById(`e${eventIndex}_deFields`);
     const finalsField = document.getElementById(`e${eventIndex}_finalsField`);
     deFields.style.display = (finish !== 'none') ? 'grid' : 'none';
-    finalsField.style.display = (finish === '1st') ? '' : 'none';
+    finalsField.style.display = (finish === '1st' || finish === '2nd') ? '' : 'none';
     recalc(eventIndex);
   });
 
@@ -577,13 +613,13 @@ function buildEventForm(container, eventIndex) {
   });
 
   // Attach listeners to all inputs
-  ['numTeams','rank','captainNum','draftNum','team_wins','finals_participated'].forEach(id => {
+  ['numTeams','rank','captainNum','draftNum','team_wins'].forEach(id => {
     const el = document.getElementById(`e${eventIndex}_${id}`);
     if (el) el.addEventListener('input', () => recalc(eventIndex));
   });
-  ['teamAge'].forEach(id => {
-    document.getElementById(`e${eventIndex}_${id}`)
-      .addEventListener('change', () => recalc(eventIndex));
+  ['teamAge', 'finals_participated'].forEach(id => {
+    const el = document.getElementById(`e${eventIndex}_${id}`);
+    if (el) el.addEventListener('change', () => recalc(eventIndex));
   });
   ['award_impact','award_ei','award_rookie'].forEach(id => {
     document.getElementById(`e${eventIndex}_${id}`)
@@ -591,6 +627,13 @@ function buildEventForm(container, eventIndex) {
   });
   document.getElementById(`e${eventIndex}_award_other`)
     .addEventListener('input', () => recalc(eventIndex));
+
+  if (isChamp) {
+    document.getElementById(`e${eventIndex}_divisions`)
+      .addEventListener('change', () => recalc(eventIndex));
+    document.getElementById(`e${eventIndex}_interdiv_result`)
+      .addEventListener('change', () => recalc(eventIndex));
+  }
 }
 
 // ── Recalculate one event ───────────────────────────────────────────────────
@@ -606,7 +649,7 @@ function recalc(eventIndex) {
   const playoff_finish      = g('playoff_finish').value;
   const alliance_wins       = parseInt(g('alliance_wins') ? g('alliance_wins').value : 0, 10) || 0;
   const team_wins           = parseInt(g('team_wins')     ? g('team_wins').value     : 0, 10) || 0;
-  const finals_participated = parseInt(g('finals_participated') ? g('finals_participated').value : 0, 10) || 0;
+  const finals_wins         = parseInt(g('finals_participated') ? g('finals_participated').value : 0, 10) || 0;
   const teamAge   = parseInt(g('teamAge').value, 10) || 0;
   const awardImpact = g('award_impact').checked;
   const awardEI     = g('award_ei').checked;
@@ -615,11 +658,18 @@ function recalc(eventIndex) {
 
   const qualPts      = (rank && numTeams) ? calcQualPoints(rank, numTeams) : 0;
   const alliancePts  = calcAlliancePoints(role, captainNum, draftNum);
-  const { de: dePts, finals: finalsPts } = calcPlayoffPoints(playoff_finish, alliance_wins, team_wins, finals_participated);
+  const { de: dePts, finals: finalsPts } = calcPlayoffPoints(playoff_finish, alliance_wins, team_wins, finals_wins);
   const playoffPts   = dePts + finalsPts;
   const awardPts     = (awardImpact ? 10 : 0) + (awardEI ? 8 : 0)
                      + (awardRookie ? 8 : 0) + (awardOther * 5);
   const total        = qualPts + alliancePts + playoffPts + awardPts + teamAge;
+
+  // Championship: interdivisional playoff (not tripled)
+  if (eventIndex === 2) {
+    const divisions = parseInt(g('divisions').value, 10) || 2;
+    const interdivResult = g('interdiv_result').value;
+    interDivisionalPts = calcInterDivisionalPoints(divisions, interdivResult);
+  }
 
   // Update breakdown table
   const rows = [];
@@ -637,7 +687,7 @@ function recalc(eventIndex) {
     rows.push([`DE Performance (${finishLabel}, ${team_wins}/${alliance_wins} matches, β=${PLAYOFF_BETA[playoff_finish]})`, dePts]);
   }
   if (finalsPts > 0) {
-    rows.push([`Finals Match Bonus (${finals_participated} match${finals_participated !== 1 ? 'es' : ''} × 5)`, finalsPts]);
+    rows.push([`Finals Match Bonus (${finals_wins} match${finals_wins !== 1 ? 'es' : ''} × 5)`, finalsPts]);
   }
   if (awardImpact) rows.push(['FIRST Impact Award', 10]);
   if (awardEI)     rows.push(['Engineering Inspiration Award', 8]);
@@ -646,15 +696,18 @@ function recalc(eventIndex) {
   if (teamAge > 0) rows.push([`Team Age Bonus`, teamAge]);
 
   const tbody = document.getElementById(`e${eventIndex}_tbody`);
-  if (rows.length === 0) {
+  if (rows.length === 0 && (eventIndex !== 2 || interDivisionalPts === 0)) {
     tbody.innerHTML = `<tr><td colspan="2" style="color:#aaa;font-style:italic;padding:8px 10px;">
       Enter event data above to see breakdown.</td></tr>`;
   } else {
-    tbody.innerHTML = rows.map(([desc, pts]) =>
+    let html = rows.map(([desc, pts]) =>
       `<tr><td>${desc}</td><td class="pts">${pts}</td></tr>`
-    ).join('') + `<tr class="total-row">
-        <td>Event Total</td><td class="pts">${total}</td>
-      </tr>`;
+    ).join('');
+    html += `<tr class="total-row"><td>Event Total${eventIndex === 2 ? ' (×3)' : ''}</td><td class="pts">${total}</td></tr>`;
+    if (eventIndex === 2 && interDivisionalPts > 0) {
+      html += `<tr><td>Interdivisional Playoff Bonus <em style="font-weight:400;">(not ×3)</em></td><td class="pts">${interDivisionalPts}</td></tr>`;
+    }
+    tbody.innerHTML = html;
   }
 
   // Update card header total
@@ -675,11 +728,14 @@ function updateSeason() {
   const e1 = getEventTotal(1);
   const e2 = getEventTotal(2);
   const champMultiplied = e2 * 3;
-  const total = e0 + e1 + champMultiplied;
+  const total = e0 + e1 + champMultiplied + interDivisionalPts;
 
   document.getElementById('chip0val').textContent = e0 > 0 ? e0 : '—';
   document.getElementById('chip1val').textContent = e1 > 0 ? e1 : '—';
-  document.getElementById('chip2val').textContent = e2 > 0 ? `${e2}×3=${champMultiplied}` : '—';
+  const champDisplay = e2 > 0
+    ? (interDivisionalPts > 0 ? `${e2}×3=${champMultiplied}+${interDivisionalPts}` : `${e2}×3=${champMultiplied}`)
+    : (interDivisionalPts > 0 ? `+${interDivisionalPts} interdiv` : '—');
+  document.getElementById('chip2val').textContent = champDisplay;
   document.getElementById('chipTotal').textContent = total;
 }
 
