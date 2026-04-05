@@ -604,7 +604,9 @@ function buildEventForm(container, eventIndex) {
     const opt2 = finalsSelect.querySelector('option[value="2"]');
     if (finish === '2nd') {
       opt2.disabled = true;
-      if (finalsSelect.value === '2') finalsSelect.value = '1';
+      if (finalsSelect.value === '2') {
+        finalsSelect.value = '1';
+      }
     } else {
       opt2.disabled = false;
     }
