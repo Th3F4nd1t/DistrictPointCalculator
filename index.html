@@ -414,23 +414,20 @@ function calcAlliancePoints(role, captainNum, draftNum) {
   return 0;
 }
 
-// Playoff advancement points (per FIM § 11.1.3)
-// Points are awarded per round participation and advancement.
-const PLAYOFF_POINTS = {
-  'none':     0,
-  'qf_loss':  5,   // Alliance eliminated in Quarterfinals
-  'sf_loss':  10,  // Alliance eliminated in Semifinals
-  'finalist': 15,  // Alliance eliminated in Finals (Runner-up)
-  'winner':   20,  // Alliance wins the event (District Champions)
-};
+// Playoff Performance — Double Elimination format (per FIM § 11.1.3)
+// β values by alliance finish
+const PLAYOFF_BETA = { '4th': 7, '3rd': 13, '2nd': 20, '1st': 20 };
 
-const PLAYOFF_LABELS = {
-  'none':     'Did not make playoffs',
-  'qf_loss':  'Quarterfinals (eliminated) — 5 pts',
-  'sf_loss':  'Semifinals (eliminated) — 10 pts',
-  'finalist': 'Finalist (runner-up) — 15 pts',
-  'winner':   'Event Winner (champion) — 20 pts',
-};
+// DE Points = ceil( (team_wins / alliance_wins) × β )
+// Winners also earn Finals Points: 5 pts per Finals match won while participating, max 10.
+function calcPlayoffPoints(finish, allianceWins, teamWins, finalsParticipated) {
+  if (finish === 'none' || allianceWins <= 0) return { de: 0, finals: 0 };
+  const beta = PLAYOFF_BETA[finish];
+  const clamped = Math.min(Math.max(0, teamWins), allianceWins);
+  const de = Math.ceil((clamped / allianceWins) * beta);
+  const finals = (finish === '1st') ? Math.min(5 * Math.max(0, finalsParticipated), 10) : 0;
+  return { de, finals };
+}
 
 // ── Build event form ────────────────────────────────────────────────────────
 
@@ -466,14 +463,30 @@ function buildEventForm(container, eventIndex) {
     </div>
     <hr class="section-divider" />
 
-    <!-- Playoff -->
+    <!-- Playoff Performance -->
     <div class="field" style="grid-column: 1 / -1;">
-      <label>Playoff Advancement</label>
-      <select id="e${eventIndex}_playoff">
-        ${Object.entries(PLAYOFF_LABELS).map(([v,l]) =>
-          `<option value="${v}">${l}</option>`
-        ).join('')}
+      <label>Alliance Playoff Finish</label>
+      <select id="e${eventIndex}_playoff_finish">
+        <option value="none">Did not advance to playoffs</option>
+        <option value="4th">4th Place (loser of Match 12) — β = 7</option>
+        <option value="3rd">3rd Place (loser of Match 13) — β = 13</option>
+        <option value="2nd">2nd Place (Finalist) — β = 20</option>
+        <option value="1st">1st Place (Winner) — β = 20</option>
       </select>
+    </div>
+    <div id="e${eventIndex}_deFields" style="display:none; grid-column: 1 / -1; grid-template-columns: 1fr 1fr; gap: 16px 24px;">
+      <div class="field">
+        <label>DE Matches Won by Alliance</label>
+        <input type="number" id="e${eventIndex}_alliance_wins" min="0" max="15" placeholder="e.g. 5" value="0" />
+      </div>
+      <div class="field">
+        <label>Of Those, Team Participated In</label>
+        <input type="number" id="e${eventIndex}_team_wins" min="0" max="15" placeholder="e.g. 5" value="0" />
+      </div>
+    </div>
+    <div class="field" id="e${eventIndex}_finalsField" style="display:none; grid-column: 1 / -1;">
+      <label>Finals Matches Won &amp; Team Participated (0–2)</label>
+      <input type="number" id="e${eventIndex}_finals_participated" min="0" max="2" placeholder="0" value="0" />
     </div>
     <hr class="section-divider" />
 
@@ -542,12 +555,33 @@ function buildEventForm(container, eventIndex) {
     recalc(eventIndex);
   });
 
+  // Show/hide DE match fields and finals field based on playoff finish
+  const finishEl = document.getElementById(`e${eventIndex}_playoff_finish`);
+  finishEl.addEventListener('change', () => {
+    const finish = finishEl.value;
+    const deFields = document.getElementById(`e${eventIndex}_deFields`);
+    const finalsField = document.getElementById(`e${eventIndex}_finalsField`);
+    deFields.style.display = (finish !== 'none') ? 'grid' : 'none';
+    finalsField.style.display = (finish === '1st') ? '' : 'none';
+    recalc(eventIndex);
+  });
+
+  // Keep team_wins capped at alliance_wins dynamically
+  const allianceWinsEl = document.getElementById(`e${eventIndex}_alliance_wins`);
+  const teamWinsEl     = document.getElementById(`e${eventIndex}_team_wins`);
+  allianceWinsEl.addEventListener('input', () => {
+    const max = parseInt(allianceWinsEl.value, 10) || 0;
+    teamWinsEl.max = max;
+    if ((parseInt(teamWinsEl.value, 10) || 0) > max) teamWinsEl.value = max;
+    recalc(eventIndex);
+  });
+
   // Attach listeners to all inputs
-  ['numTeams','rank','captainNum','draftNum'].forEach(id => {
+  ['numTeams','rank','captainNum','draftNum','team_wins','finals_participated'].forEach(id => {
     const el = document.getElementById(`e${eventIndex}_${id}`);
     if (el) el.addEventListener('input', () => recalc(eventIndex));
   });
-  ['playoff','teamAge'].forEach(id => {
+  ['teamAge'].forEach(id => {
     document.getElementById(`e${eventIndex}_${id}`)
       .addEventListener('change', () => recalc(eventIndex));
   });
@@ -569,7 +603,10 @@ function recalc(eventIndex) {
   const role      = g('role').value;
   const captainNum = g('captainNum') ? parseInt(g('captainNum').value, 10) || 0 : 0;
   const draftNum   = g('draftNum')   ? parseInt(g('draftNum').value,   10) || 0 : 0;
-  const playoff   = g('playoff').value;
+  const playoff_finish      = g('playoff_finish').value;
+  const alliance_wins       = parseInt(g('alliance_wins') ? g('alliance_wins').value : 0, 10) || 0;
+  const team_wins           = parseInt(g('team_wins')     ? g('team_wins').value     : 0, 10) || 0;
+  const finals_participated = parseInt(g('finals_participated') ? g('finals_participated').value : 0, 10) || 0;
   const teamAge   = parseInt(g('teamAge').value, 10) || 0;
   const awardImpact = g('award_impact').checked;
   const awardEI     = g('award_ei').checked;
@@ -578,7 +615,8 @@ function recalc(eventIndex) {
 
   const qualPts      = (rank && numTeams) ? calcQualPoints(rank, numTeams) : 0;
   const alliancePts  = calcAlliancePoints(role, captainNum, draftNum);
-  const playoffPts   = PLAYOFF_POINTS[playoff] || 0;
+  const { de: dePts, finals: finalsPts } = calcPlayoffPoints(playoff_finish, alliance_wins, team_wins, finals_participated);
+  const playoffPts   = dePts + finalsPts;
   const awardPts     = (awardImpact ? 10 : 0) + (awardEI ? 8 : 0)
                      + (awardRookie ? 8 : 0) + (awardOther * 5);
   const total        = qualPts + alliancePts + playoffPts + awardPts + teamAge;
@@ -594,8 +632,12 @@ function recalc(eventIndex) {
       : `Draft Acceptance #${draftNum} (17 − ${draftNum})`;
     rows.push([desc, alliancePts]);
   }
-  if (playoffPts > 0) {
-    rows.push([`Playoff Advancement (${PLAYOFF_LABELS[playoff].split(' —')[0]})`, playoffPts]);
+  if (dePts > 0) {
+    const finishLabel = { '4th': '4th Place', '3rd': '3rd Place', '2nd': '2nd Place (Finalist)', '1st': '1st Place (Winner)' }[playoff_finish] || playoff_finish;
+    rows.push([`DE Performance (${finishLabel}, ${team_wins}/${alliance_wins} matches, β=${PLAYOFF_BETA[playoff_finish]})`, dePts]);
+  }
+  if (finalsPts > 0) {
+    rows.push([`Finals Match Bonus (${finals_participated} match${finals_participated !== 1 ? 'es' : ''} × 5)`, finalsPts]);
   }
   if (awardImpact) rows.push(['FIRST Impact Award', 10]);
   if (awardEI)     rows.push(['Engineering Inspiration Award', 8]);
